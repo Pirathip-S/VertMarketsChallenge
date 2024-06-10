@@ -21,8 +21,6 @@ namespace VertMarketsServices.Services
         private const string _category = "{category}";
 
         private ApiResponse? token;
-        private List<Tuple<string, string>>? _subscriberCategory;
-        private string[]? _allCategorySubscribers;
 
         /// <summary>
         /// VertMarketsService
@@ -51,15 +49,8 @@ namespace VertMarketsServices.Services
                 if (token?.Success ?? false)
                 {
                     var categories = await GetApiResponse<ApiResponse<IEnumerable<string>>>(_endPointsValue.Categories);
-                    var subscribers = await GetApiResponse<ApiResponse<IEnumerable<ApiSubscriber>>>(_endPointsValue.Subscribers);
-                    _subscriberCategory = _subscriberCategory ?? [];
-                    foreach (var category in categories.Data)
-                    {                        
-                        var res = await GetSubscriberCategory(category, subscribers.Data);
-                        _subscriberCategory.AddRange(res);
-                    }
-                    _allCategorySubscribers = _subscriberCategory?.GroupBy(x => x.Item1).Where(y => y.Count() == categories.Data.Count()).Select(a => a.Key).ToArray();
-                    return await GetAnswers(_allCategorySubscribers);
+                    var subscribers = await GetApiResponse<ApiResponse<IEnumerable<ApiSubscriber>>>(_endPointsValue.Subscribers);                   
+                    return await GetAnswers(await GetQualifiedSubscribers(categories, subscribers));
                 }
                 else
                     return token?.Message ?? "Token Generation Error try again after some time";
@@ -69,6 +60,17 @@ namespace VertMarketsServices.Services
             {
                 throw;
             }
+        }
+        private async Task<string[]> GetQualifiedSubscribers(ApiResponse<IEnumerable<string>> categories, ApiResponse<IEnumerable<ApiSubscriber>> subscribers)
+        {
+            List<Tuple<string, string>> _subscriberCategory =  [];
+            foreach (var category in categories.Data)
+            {
+                var res = await GetSubscriberCategory(category, subscribers.Data);
+                _subscriberCategory.AddRange(res);
+            }
+            var _qualifiedSubscribers = _subscriberCategory?.GroupBy(x => x.Item1).Where(y => y.Count() == categories.Data.Count()).Select(a => a.Key).ToArray();
+            return _qualifiedSubscribers ?? [];
         }
         private async Task<string> GetAnswers(string[]? subscribers)
         {
